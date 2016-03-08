@@ -1,28 +1,23 @@
 package com.tomduan.bigfishdemo;
 
+import android.app.Activity;
+import android.database.ContentObserver;
+import android.database.Cursor;
+import android.net.Uri;
+import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
+import com.tomduan.dayulibrary.domain.SendUsecase;
+import com.tomduan.dayulibrary.encryption.Encryption;
+import com.tomduan.dayulibrary.model.Result;
+import com.tomduan.dayulibrary.model.rest.RestRepo;
 
-import com.taobao.api.ApiException;
-import com.taobao.api.DefaultTaobaoClient;
-import com.taobao.api.TaobaoClient;
-import com.taobao.api.request.AlibabaAliqinFcSmsNumSendRequest;
-import com.taobao.api.response.AlibabaAliqinFcSmsNumSendResponse;
-import com.tomduan.bigfishdemo.MD5.ModelToMap;
-import com.tomduan.bigfishdemo.MD5.Sign;
-import com.tomduan.bigfishdemo.Model.Result;
-import com.tomduan.bigfishdemo.Model.Send;
-import com.tomduan.bigfishdemo.Model.rest.RestRepo;
-import com.tomduan.bigfishdemo.Usecase.SendUsecase;
-
-import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
@@ -33,6 +28,10 @@ public class MainActivity extends AppCompatActivity {
     @Bind(R.id.textv)
     TextView textView;
 
+
+    static TextView textView1;
+    private String code;
+
     Map<String, String> map = new HashMap<>();
 
     @Override
@@ -40,100 +39,68 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
-
-        map.put("method", "taobao.item.seller.get");
-        map.put("app_key", "12345678");
-        map.put("session", "test");
-        map.put("timestamp", "2016-01-01 12:00:00");
-        map.put("format", "json");
-        map.put("v", "2.0");
-        map.put("sign_method", "md5");
-        map.put("fields", "num_iid,title,nick,price,num");
-        map.put("num_iid", "11223344");
-
-        try {
-            textView.setText(Sign.signTopRequest(map, "helloworld", "md5"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-
-//        textView.setText(map.toString());
-
-
-
-    }
-
-    private class SendMSG implements Runnable{
-
-        @Override
-        public void run() {
-            try {
-                sendMSM();
-            } catch (ApiException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private void sendMSM() throws ApiException {
-        TaobaoClient client = new DefaultTaobaoClient("http://gw.api.taobao.com/router/rest", "23321327", "a26e632f7c87e4b216692788ebce03a7");
-        AlibabaAliqinFcSmsNumSendRequest request = new AlibabaAliqinFcSmsNumSendRequest();
-        request.setExtend("12345");
-        request.setSmsType("normal");
-        request.setSmsFreeSignName("阿里大鱼");
-        request.setSmsParamString("");
-        request.setRecNum("18817313209");
-        request.setSmsTemplateCode("SMS_5215124");
-        AlibabaAliqinFcSmsNumSendResponse rsp = client.execute(request);
-        Log.i("aaaaaaa",rsp.getBody());
+        textView1 = (TextView) findViewById(R.id.textv1);
     }
 
     @OnClick(R.id.click)
     public void send(){
-
-        SimpleDateFormat formatter = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
-        Date curDate = new Date(System.currentTimeMillis());//获取当前时间
-        String str = formatter.format(curDate);
-
-        String sms_param = "{\"code\":\"1234\",\"product\":\"alidayu\"}";
-
-        Send send = new Send(
-                "12345",
-                "normal", "注册验证", "18817313209",
-                "SMS_5215121", "alibaba.aliqin.fc.sms.num.send", "23321327", str, "2.0", "md5", "json", sms_param);
-        String sign = "";
+        getMSG();
+        textView.setText("随机验证码为： " + code);
+    }
 
 
-        Map<String,String> map = new HashMap<>();
-        try {
-            map = new ModelToMap().toMap(send);
-            sign = Sign.signTopRequest(map, "55c49bf4000c91d2f50e1aa8203d8fca", "md5");
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-//        send.setSign(sign);
-        map.put("sign", sign);
 
-//
+    private void getMSG() {
+        Encryption encryption = new Encryption(ALiBigFish.APP_KEY, ALiBigFish.APP_SECRET);
+        Map<String, String> map = encryption
+                .setEec_num("18817313209")
+                .setSms_free_sign_name("注册验证")
+                .setCodeAndProduct(getCode(), "鲑鱼科技")
+                .setSms_template_code("SMS_5215121")
+                .bulid().addSign();
         new SendUsecase(new RestRepo(), map).execute().subscribe(
                 response -> manage(response),
                 throwable -> manageError(throwable)
         );
     }
 
+    private String getCode() {
+        code = String.valueOf((int)((Math.random()*9+1)*100000));
+        return code;
+    }
+
     private void manageError(Throwable throwable) {
-        textView.setText(throwable.getMessage());
+//        textView.setText(throwable.getMessage());
         Log.i("loggg", throwable.getMessage());
         throwable.printStackTrace();
     }
 
     private void manage(Response<Result> response) {
-        if (response.isSuccess()){
-            textView.setText(response.body().toString());
+//        if (response.isSuccess()){
+//            textView.setText(response.body().toString());
+//        }
+    }
+
+    /**
+     * 从短信字符窜提取验证码
+     * @param body 短信内容
+     * @param YZMLENGTH  验证码的长度 一般6位或者4位
+     * @return 接取出来的验证码
+     */
+    public static void getyzm(String body, int YZMLENGTH) {
+        // 首先([a-zA-Z0-9]{YZMLENGTH})是得到一个连续的六位数字字母组合
+        // (?<![a-zA-Z0-9])负向断言([0-9]{YZMLENGTH})前面不能有数字
+        // (?![a-zA-Z0-9])断言([0-9]{YZMLENGTH})后面不能有数字出现
+        Pattern p = Pattern
+                .compile("(?<![a-zA-Z0-9])([a-zA-Z0-9]{" + YZMLENGTH + "})(?![a-zA-Z0-9])");
+        Matcher m = p.matcher(body);
+        if (m.find()) {
+            System.out.println(m.group());
         }
+        setCode(m.group(0));
+    }
+
+    private static void setCode(String code){
+        textView1.setText("短信中的验证码是： "+ code);
     }
 }
